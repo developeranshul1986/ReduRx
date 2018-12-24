@@ -1,4 +1,14 @@
 /// 👌 A thin layer of a Redux-based state manager on top of RxDart.
+///
+/// Nomi Modifications:
+/// - Changed several functions to take/return Store instead of state T,
+/// propagating Store through to actions. This enables some powerful features
+/// since you can now dispatch from middleware/actions:
+/// chaining actions with middleware and dispatching nested actions!!
+/// - Deleted the Computation typedef 'cause it's just redundant
+/// - Removed Store(state) variable assignments in Store.dispatch, saving memory!
+/// (I think?)
+
 library redurx;
 
 import 'dart:async';
@@ -13,32 +23,29 @@ abstract class ActionType {}
 /// Action for synchronous requests.
 abstract class Action<T> implements ActionType {
   /// Method to perform a synchronous mutation on the state.
-  T reduce(T state);
+  Store<T> reduce(Store<T> store);
 }
-
-/// Reducer function type for state mutations.
-typedef T Computation<T>(T state);
 
 /// Action for asynchronous requests.
 abstract class AsyncAction<T> implements ActionType {
   /// Method to perform a asynchronous mutation on the state.
-  Future<Computation<T>> reduce(T state);
+  Future<Store<T>> reduce(Store<T> store);
 }
 
 /// Interface for Middlewares.
 abstract class Middleware<T> {
   /// Called before action reducer.
-  T beforeAction(ActionType action, T state) => state;
+  Store<T> beforeAction(ActionType action, Store<T> store) => store;
 
   /// Called after action reducer.
-  T afterAction(ActionType action, T state) => state;
+  Store<T> afterAction(ActionType action, Store<T> store) => store;
 }
 
 /// The heart of the idea, this is where we control the State and dispatch Actions.
 class Store<T> {
   /// You can create the Store given an [initialState].
   Store([T initialState])
-      : subject = BehaviorSubject<T>(seedValue: initialState);
+    : subject = BehaviorSubject<T>(seedValue: initialState);
 
   /// This is where RxDart comes in, we manage the final state using a [BehaviorSubject].
   final BehaviorSubject<T> subject;
@@ -58,24 +65,25 @@ class Store<T> {
   /// Dispatches actions that mutates the current state.
   Store<T> dispatch(ActionType action) {
     if (action is Action<T>) {
-      final afterAction =
-          action.reduce(_computeBeforeMiddlewares(action, state));
-      final afterMiddlewares = _foldAfterActionMiddlewares(afterAction, action);
-      subject.add(afterMiddlewares);
+      /* Simplified...
+      final Store<T> afterAction =
+          action.reduce(_computeBeforeMiddlewares(action, this));
+      final Store<T> afterMiddlewares = _foldAfterActionMiddlewares(
+        afterAction, action);
+      subject.add(afterMiddlewares.state);
+      */
+      subject.add(_foldAfterActionMiddlewares(
+        action.reduce(_computeBeforeMiddlewares(action, this)), action).state);
+
     }
 
     if (action is AsyncAction<T>) {
       action
-          .reduce(_computeBeforeMiddlewares(action, state))
-          .then((computation) {
-        final afterAction =
-            computation(_computeBeforeMiddlewares(action, state));
-        final afterMiddlewares =
-            _foldAfterActionMiddlewares(afterAction, action);
-        subject.add(afterMiddlewares);
+        .reduce(_computeBeforeMiddlewares(action, this)).then((afterAction) {
+        subject.add(_foldAfterActionMiddlewares(
+          afterAction, action).state);
       });
     }
-
     return this;
   }
 
@@ -88,11 +96,12 @@ class Store<T> {
   /// Closes the stores subject.
   void close() => subject.close();
 
-  T _computeBeforeMiddlewares(ActionType action, T state) =>
-      middlewares.fold<T>(
-          state, (state, middleware) => middleware.beforeAction(action, state));
+  Store<T> _computeBeforeMiddlewares(ActionType action, Store<T> store) =>
+    middlewares.fold<Store<T>>(
+      store, (store, middleware) => middleware.beforeAction(action, store));
 
-  T _foldAfterActionMiddlewares(T initialValue, ActionType action) =>
-      middlewares.fold<T>(initialValue,
-          (state, middleware) => middleware.afterAction(action, state));
+  Store<T> _foldAfterActionMiddlewares(
+    Store<T> initialValue, ActionType action) =>
+    middlewares.fold<Store<T>>(initialValue,
+        (store, middleware) => middleware.afterAction(action, store));
 }
