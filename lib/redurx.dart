@@ -2,7 +2,10 @@
 ///
 /// Nomi Modifications:
 /// - Implemented Store<T> as a Middleware parameter, so Store.dispatch can be
-///   called from Middleware to handle side effects/nested actions.
+///   called from Middleware to handle side effects/nested actions. Two states
+///   get added to store per action.  Tried many ways of passing store/state
+///   around, but this was the only way that works.
+///   cleanly given Flutter and Built_Value limitations.
 /// - Deleted the Computation typedef 'cause it's just redundant
 /// - Removed the second 'beforeAction' Middleware call for AsyncActions
 /// - Removed Store(state) variable assignments in Store.dispatch, saving memory!
