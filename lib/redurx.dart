@@ -2,9 +2,10 @@
 ///
 /// Nomi Modifications:
 /// - Implemented Store<T> as a Middleware parameter, so Store.dispatch can be
-///   called from Middleware to handle side effects. IMPORTANT: Store isn't updated
-///   with new state from actions until after all middleware returns! Only state
-///   parameter in afterAction() is updated from the reducer
+///   called from Middleware to handle side effects/nested actions.
+///   IMPORTANT: Store isn't updated with new state from outer action until
+///   after all middleware returns! Only state parameter in afterAction() is
+///   updated from the outer action.
 /// - Deleted the Computation typedef 'cause it's just redundant
 /// - Removed the second 'beforeAction' Middleware call for AsyncActions
 /// - Removed Store(state) variable assignments in Store.dispatch, saving memory!
