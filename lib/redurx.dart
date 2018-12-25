@@ -100,9 +100,11 @@ class Store<T> {
 
   T _computeBeforeMiddlewares(ActionType action, Store<T> store, T state) =>
     middlewares.fold<T>(
-      state, (state, middleware) => middleware.beforeAction(action, store, state));
+      state, (state, middleware) =>
+          middleware.beforeAction(action, store, state));
 
-  T _foldAfterActionMiddlewares(T initialValue, Store<T> store, ActionType action) =>
+  T _foldAfterActionMiddlewares(
+    T initialValue, Store<T> store, ActionType action) =>
     middlewares.fold<T>(initialValue,
         (state, middleware) => middleware.afterAction(action, store, state));
 }
