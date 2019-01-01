@@ -77,9 +77,9 @@ class Store<T> {
     }
 
     if (action is AsyncAction<T>) {
-      action.reduce(_computeBeforeMiddlewares(action, this))
-        .then((state) => subject.add(state));
-      subject.add(_foldAfterActionMiddlewares(this, action));
+      action.reduce(_computeBeforeMiddlewares(action, this)).then(
+          (state) => subject.add(state)).then(
+          (_) => subject.add(_foldAfterActionMiddlewares(this, action)));
     }
 
     return this;
