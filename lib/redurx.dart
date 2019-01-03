@@ -1,46 +1,33 @@
 /// 👌 A thin layer of a Redux-based state manager on top of RxDart.
 ///
 /// Nomi Modifications:
-/// - Implemented Store<T> as a Middleware parameter, so Store.dispatch can be
-///   called from Middleware to handle side effects/nested actions. Two states
-///   get added to store per action.  Tried many ways of passing store/state
-///   around, but this was the only way that works.
-///   cleanly given Flutter and Built_Value limitations.
-/// - Deleted the Computation typedef 'cause it's just redundant
-/// - Removed the second 'beforeAction' Middleware call for AsyncActions
-/// - Removed Store(state) variable assignments in Store.dispatch, saving memory!
-/// (I think?)
+/// - Basically rebuilt the entire fucking thing to support two additional
+///   goals: simultaneously running multiple actions with asynchronous calls,
+///   and composition of actions. This primarily demands that state is passed
+///   into reducers for updates only AFTER asynchronous calls, through
+///   middleware, are injected into the action. Probably spent a week finding a
+///   generalized solution that doesn't have race failures >_<
 
 library redurx;
 
 import 'dart:async';
-
 import 'package:rxdart/rxdart.dart';
 
 export 'src/log_middleware.dart';
 
-/// Base interface for all action types.
-abstract class ActionType {}
-
 /// Action for synchronous requests.
-abstract class Action<T> implements ActionType {
+abstract class Action<T> {
   /// Method to perform a synchronous mutation on the state.
   T reduce(T state);
-}
-
-/// Action for asynchronous requests.
-abstract class AsyncAction<T> implements ActionType {
-  /// Method to perform a asynchronous mutation on the state.
-  Future<T> reduce(T state);
 }
 
 /// Interface for Middlewares.
 abstract class Middleware<T> {
   /// Called before action reducer.
-  T beforeAction(ActionType action, Store<T> store) => store.state;
+  Future<void> beforeAction(Action action, Store<T> store) async => null;
 
   /// Called after action reducer.
-  T afterAction(ActionType action, Store<T> store) => store.state;
+  Future<void> afterAction(Action action, Store<T> store) async  => null;
 }
 
 /// The heart of the idea, this is where we control the State and dispatch Actions.
@@ -65,41 +52,47 @@ class Store<T> {
   Stream<S> map<S>(S convert(T state)) => stream.map(convert);
 
   /// Dispatches actions that mutates the current state.
-  Store<T> dispatch(ActionType action) {
-    if (action is Action<T>) {
-      // Injects current Store<T> into Middleware, which injects state T
-      // into action reducer. Add that result to Store<T>'s stream to hold
-      // states.
-      subject.add(action.reduce(_computeBeforeMiddlewares(action, this)));
-      // Store<T> now has updated state. Inject into Middleware, repeat. We now
-      // have a Store<T> with all updates!! Fuck yeah.
-      subject.add(_foldAfterActionMiddlewares(this, action));
-    }
+  Future<void> dispatch(Action action) async {
 
-    if (action is AsyncAction<T>) {
-      action.reduce(_computeBeforeMiddlewares(action, this)).then(
-          (state) => subject.add(state)).then(
-          (_) => subject.add(_foldAfterActionMiddlewares(this, action)));
-    }
+    // Computes beforeAction, which exist to inject asynchronous things into
+    // action - doesn't return state
+    await _computeBeforeActions(action, this).then((_) {
+      print('returning action!');
+      subject.add(action.reduce(state));
+      print(state);
+    });
 
-    return this;
+    // Computes beforeActions, which exist to pass data externally
+    await _computeAfterActions(action, this);
+
+    return;
   }
 
   /// Adds middlewares to the store.
-  Store<T> add(Middleware<T> middleware) {
+  void add(Middleware<T> middleware) {
     middlewares.add(middleware);
-    return this;
+    return;
   }
 
   /// Closes the stores subject.
   void close() => subject.close();
 
-  T _computeBeforeMiddlewares(ActionType action, Store<T> store) =>
-    middlewares.fold<T>(
-      store.state, (state, middleware) =>
-          middleware.beforeAction(action, store));
+  Future<void> _computeBeforeActions(Action action, Store<T> store) async {
 
-  T _foldAfterActionMiddlewares(Store<T> store, ActionType action) =>
-    middlewares.fold<T>(store.state,
-        (state, middleware) => middleware.afterAction(action, store));
+    for (Middleware middleware in middlewares) {
+      await middleware.beforeAction(action, store);
+    }
+
+    /* Curiously doesn't work - forEach evaluates synchronously!!
+    await middlewares.forEach((middleware) async {
+      await middleware.beforeAction(action, store);
+    });
+    */
+  }
+
+  Future<void> _computeAfterActions(Action action, Store<T> store) async {
+    for (Middleware middleware in middlewares) {
+      await middleware.afterAction(action, store);
+    }
+  }
 }
