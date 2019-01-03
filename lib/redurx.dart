@@ -57,9 +57,7 @@ class Store<T> {
     // Computes beforeAction, which exist to inject asynchronous things into
     // action - doesn't return state
     await _computeBeforeActions(action, this).then((_) {
-      print('returning action!');
       subject.add(action.reduce(state));
-      print(state);
     });
 
     // Computes beforeActions, which exist to pass data externally
