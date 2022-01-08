@@ -34,7 +34,7 @@ abstract class Middleware<T> {
 class Store<T> {
   /// You can create the Store given an [initialState].
   Store([T initialState])
-    : subject = BehaviorSubject<T>(seedValue: initialState);
+    : subject = BehaviorSubject<T>.seeded(initialState);
 
   /// This is where RxDart comes in, we manage the final state using a [BehaviorSubject].
   final BehaviorSubject<T> subject;
@@ -57,7 +57,7 @@ class Store<T> {
     // Computes beforeAction, which exist to inject asynchronous things into
     // action - doesn't return state
     await _computeBeforeActions(action, this).then((_) {
-      subject.add(action.reduce(state));
+      subject.add(action.reduce(state) as T);
     });
 
     // Computes beforeActions, which exist to pass data externally
