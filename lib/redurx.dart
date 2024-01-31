@@ -33,8 +33,8 @@ abstract class Middleware<T> {
 /// The heart of the idea, this is where we control the State and dispatch Actions.
 class Store<T> {
   /// You can create the Store given an [initialState].
-  Store([T initialState])
-    : subject = BehaviorSubject<T>.seeded(initialState);
+  Store([T? initialState])
+    : subject = BehaviorSubject<T>.seeded(initialState!);
 
   /// This is where RxDart comes in, we manage the final state using a [BehaviorSubject].
   final BehaviorSubject<T> subject;
